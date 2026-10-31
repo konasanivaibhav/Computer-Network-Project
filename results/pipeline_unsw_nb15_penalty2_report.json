@@ -1,0 +1,82 @@
+{
+  "dataset": "unsw_nb15",
+  "flows": 40000,
+  "devices": 200,
+  "attackers": 20,
+  "ppo_model": true,
+  "trust_penalty": 2.0,
+  "comparison": [
+    {
+      "strategy": "IDS alone, static block at P >= 0.5",
+      "attacks_mitigated_pct": 98.88,
+      "benign_disrupted_pct": 34.78,
+      "benign_served_pct": 65.22
+    },
+    {
+      "strategy": "Proposed: trust + PPO + AHP-TOPSIS",
+      "attacks_mitigated_pct": 98.15,
+      "benign_disrupted_pct": 46.65,
+      "benign_served_pct": 53.35
+    }
+  ],
+  "action_distribution": {
+    "ALLOW": 8184,
+    "MONITOR": 1810,
+    "RATE_LIMIT": 1,
+    "REDIRECT": 1468,
+    "BLOCK": 28537
+  },
+  "per_category": [
+    {
+      "category": "Analysis",
+      "flows": 329,
+      "handled_correctly_pct": 100.0
+    },
+    {
+      "category": "Backdoor",
+      "flows": 283,
+      "handled_correctly_pct": 100.0
+    },
+    {
+      "category": "DoS",
+      "flows": 1983,
+      "handled_correctly_pct": 99.7
+    },
+    {
+      "category": "Exploits",
+      "flows": 5405,
+      "handled_correctly_pct": 99.43
+    },
+    {
+      "category": "Fuzzers",
+      "flows": 2944,
+      "handled_correctly_pct": 87.94
+    },
+    {
+      "category": "Generic",
+      "flows": 9163,
+      "handled_correctly_pct": 99.96
+    },
+    {
+      "category": "Normal",
+      "flows": 17969,
+      "handled_correctly_pct": 53.35
+    },
+    {
+      "category": "Reconnaissance",
+      "flows": 1696,
+      "handled_correctly_pct": 100.0
+    },
+    {
+      "category": "Shellcode",
+      "flows": 184,
+      "handled_correctly_pct": 93.48
+    },
+    {
+      "category": "Worms",
+      "flows": 44,
+      "handled_correctly_pct": 100.0
+    }
+  ],
+  "device_assignment": "simulated"
+}

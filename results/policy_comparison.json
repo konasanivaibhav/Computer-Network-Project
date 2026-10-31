@@ -1,0 +1,91 @@
+{
+  "steps": 5000,
+  "seed": 2026,
+  "results": {
+    "Static detect-and-block": {
+      "mean_reward": 1.0381,
+      "attack_mitigation_rate": 0.925,
+      "benign_availability": 0.8869,
+      "benign_disruption_rate": 0.1131,
+      "action_distribution": {
+        "ALLOW": 3211,
+        "MONITOR": 0,
+        "RATE_LIMIT": 0,
+        "REDIRECT": 0,
+        "BLOCK": 1789
+      },
+      "flows": {
+        "attack": 1507,
+        "benign": 3493
+      }
+    },
+    "Rule-based trust policy": {
+      "mean_reward": 1.2249,
+      "attack_mitigation_rate": 0.7863,
+      "benign_availability": 0.9888,
+      "benign_disruption_rate": 0.0112,
+      "action_distribution": {
+        "ALLOW": 3087,
+        "MONITOR": 503,
+        "RATE_LIMIT": 215,
+        "REDIRECT": 86,
+        "BLOCK": 1109
+      },
+      "flows": {
+        "attack": 1507,
+        "benign": 3493
+      }
+    },
+    "AHP-TOPSIS (MCDM only)": {
+      "mean_reward": 0.6544,
+      "attack_mitigation_rate": 0.998,
+      "benign_availability": 1.0,
+      "benign_disruption_rate": 0.0561,
+      "action_distribution": {
+        "ALLOW": 430,
+        "MONITOR": 2196,
+        "RATE_LIMIT": 826,
+        "REDIRECT": 1009,
+        "BLOCK": 539
+      },
+      "flows": {
+        "attack": 1507,
+        "benign": 3493
+      }
+    },
+    "PPO agent": {
+      "mean_reward": 1.5515,
+      "attack_mitigation_rate": 0.998,
+      "benign_availability": 0.9994,
+      "benign_disruption_rate": 0.0006,
+      "action_distribution": {
+        "ALLOW": 3494,
+        "MONITOR": 0,
+        "RATE_LIMIT": 0,
+        "REDIRECT": 0,
+        "BLOCK": 1506
+      },
+      "flows": {
+        "attack": 1507,
+        "benign": 3493
+      }
+    },
+    "Hybrid PPO + AHP-TOPSIS (proposed)": {
+      "mean_reward": 1.5405,
+      "attack_mitigation_rate": 0.9987,
+      "benign_availability": 0.9989,
+      "benign_disruption_rate": 0.004,
+      "action_distribution": {
+        "ALLOW": 3480,
+        "MONITOR": 0,
+        "RATE_LIMIT": 9,
+        "REDIRECT": 10,
+        "BLOCK": 1501
+      },
+      "flows": {
+        "attack": 1507,
+        "benign": 3493
+      }
+    }
+  }
+}

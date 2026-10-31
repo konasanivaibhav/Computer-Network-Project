@@ -1,0 +1,146 @@
+{
+  "dataset": "unsw_nb15",
+  "train_source": "/tmp/claude-0/-home-claude/a4ec599d-cf5f-5093-9045-063014ed170a/scratchpad/realdata/UNSW_NB15_training-set.csv",
+  "test_source": "/tmp/claude-0/-home-claude/a4ec599d-cf5f-5093-9045-063014ed170a/scratchpad/realdata/UNSW_NB15_testing-set.csv",
+  "train_rows": 175341,
+  "test_rows": 82332,
+  "features_not_measured": [],
+  "settings": {
+    "n_estimators": 100,
+    "cv_folds": 3,
+    "smote": false,
+    "threshold": 0.5,
+    "seed": 42
+  },
+  "metrics": {
+    "tpr": 0.988948,
+    "fpr": 0.347108,
+    "specificity": 0.652892,
+    "precision": 0.777317,
+    "accuracy": 0.837925,
+    "f1_score": 0.870454,
+    "roc_auc": 0.967647,
+    "pr_auc": 0.97238,
+    "brier_score": 0.110174,
+    "ece": 0.099983,
+    "confusion_matrix": {
+      "tp": 44831,
+      "fp": 12843,
+      "tn": 24157,
+      "fn": 501
+    },
+    "sla_compliance": {
+      "meets_tpr_target": true,
+      "meets_fpr_target": false,
+      "overall_sla_pass": false,
+      "target_tpr": 0.95,
+      "target_fpr": 0.05
+    }
+  },
+  "per_category": [
+    {
+      "category": "Generic",
+      "type": "attack",
+      "flows": 18871,
+      "correct_pct": 99.98
+    },
+    {
+      "category": "Exploits",
+      "type": "attack",
+      "flows": 11132,
+      "correct_pct": 99.87
+    },
+    {
+      "category": "Fuzzers",
+      "type": "attack",
+      "flows": 6062,
+      "correct_pct": 92.26
+    },
+    {
+      "category": "DoS",
+      "type": "attack",
+      "flows": 4089,
+      "correct_pct": 99.88
+    },
+    {
+      "category": "Reconnaissance",
+      "type": "attack",
+      "flows": 3496,
+      "correct_pct": 100.0
+    },
+    {
+      "category": "Analysis",
+      "type": "attack",
+      "flows": 677,
+      "correct_pct": 100.0
+    },
+    {
+      "category": "Backdoor",
+      "type": "attack",
+      "flows": 583,
+      "correct_pct": 100.0
+    },
+    {
+      "category": "Shellcode",
+      "type": "attack",
+      "flows": 378,
+      "correct_pct": 97.35
+    },
+    {
+      "category": "Worms",
+      "type": "attack",
+      "flows": 44,
+      "correct_pct": 100.0
+    },
+    {
+      "category": "Normal",
+      "type": "benign",
+      "flows": 37000,
+      "correct_pct": 65.29
+    }
+  ],
+  "top_features": [
+    {
+      "feature": "sttl",
+      "importance": 0.17989
+    },
+    {
+      "feature": "sload",
+      "importance": 0.09137
+    },
+    {
+      "feature": "dttl",
+      "importance": 0.07261
+    },
+    {
+      "feature": "dload",
+      "importance": 0.06511
+    },
+    {
+      "feature": "dmeansz",
+      "importance": 0.0629
+    },
+    {
+      "feature": "sbytes",
+      "importance": 0.05758
+    },
+    {
+      "feature": "byte_rate",
+      "importance": 0.05532
+    },
+    {
+      "feature": "dbytes",
+      "importance": 0.0529
+    },
+    {
+      "feature": "smeansz",
+      "importance": 0.05057
+    },
+    {
+      "feature": "dpkts",
+      "importance": 0.03922
+    }
+  ],
+  "training_seconds": 26.8,
+  "inference_ms_per_flow": 0.0091
+}

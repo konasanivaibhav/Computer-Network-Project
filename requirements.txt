@@ -1,0 +1,44 @@
+# ==============================================================================
+# SDN Trust-Score-Driven Reinforcement Learning Intrusion Mitigation System
+# Core Requirements & Dependencies
+# ==============================================================================
+
+# Core Scientific & ML Libraries
+numpy>=1.24.0
+pandas>=2.0.0,<3.0.0
+scipy>=1.10.0,<2.0.0
+scikit-learn>=1.3.0
+imbalanced-learn>=0.11.0
+joblib>=1.3.0
+
+# Reinforcement Learning & Simulation Environment
+gymnasium>=0.29.0
+stable-baselines3>=2.2.0
+torch>=2.1.0
+
+# Network Packet Processing & SDN Frameworks
+# Note: Ryu requires eventlet; for Mininet simulation, run on Linux or Docker
+scapy>=2.5.0
+ryu>=4.34; sys_platform != "win32"
+eventlet==0.30.2; sys_platform != "win32"
+
+# Threat Intelligence & Scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+feedparser>=6.0.10
+apscheduler>=3.10.0
+spacy>=3.7.0
+nltk>=3.8.1
+
+# Database & Telemetry Persistence
+SQLAlchemy>=2.0.0
+
+# Visualization & Reporting
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Testing, Benchmarking & Code Quality
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+pydantic>=2.5.0

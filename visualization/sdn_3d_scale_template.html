@@ -1,0 +1,554 @@
+<title>Adaptive Trust SDN at Scale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one-screen control room for many SDN networks. Each network is a ring of access
+   switches around its spine, hosts clustered around each switch, its controller floating
+   above. Telemetry rail on the right (stacks below on phones); timeline at the bottom.
+   Dark-first by design, matching the single-network viewer. */
+:root {
+  color-scheme: dark;
+  --floor: #0b1220;
+  --panel: #111b2e;
+  --line: #22314d;
+  --ink: #e6edf8;
+  --muted: #8a9bb8;
+  --steel: #9fc3ff;
+  --allow: #3fb68b;
+  --monitor: #4a9eda;
+  --ratelimit: #e3b341;
+  --redirect: #b07cf0;
+  --block: #ef5a5a;
+  --idle: #3a4a66;
+  --agent: #f29fc5;        /* AI analyst actions in the feed */
+  --f-display: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Courier New", monospace;
+}
+html, body { height: 100%; }
+body { background: var(--floor); color: var(--ink); font-family: var(--f-display); overflow: hidden; }
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; padding: 12px 16px 8px; border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 1.05rem; font-weight: 750; font-stretch: 80%; text-wrap: balance; }
+header .sub { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+header .clock { margin-left: auto; font-family: var(--f-mono); font-size: .85rem; color: var(--steel); font-variant-numeric: tabular-nums; }
+.main { min-height: 0; display: grid; grid-template-columns: 1fr minmax(310px, 380px); }
+.stage { position: relative; min-width: 0; min-height: 0; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lbl { position: absolute; transform: translate(-50%, 0); white-space: nowrap; text-align: center; font-size: .74rem; line-height: 1.2; text-shadow: 0 1px 3px var(--floor); }
+.lbl b { display: block; font-weight: 700; font-stretch: 85%; }
+.lbl span { color: var(--muted); font-family: var(--f-mono); font-size: .64rem; }
+.focus { position: absolute; left: 16px; top: 12px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 32px); }
+.legend { position: absolute; left: 16px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: .72rem; color: var(--muted); max-width: calc(100% - 32px); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.tip { position: absolute; pointer-events: none; padding: 7px 9px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font-size: .74rem; line-height: 1.4; min-width: 170px; }
+.tip b { font-stretch: 85%; }
+.tip .m { font-family: var(--f-mono); font-size: .68rem; color: var(--muted); }
+aside { min-width: 0; min-height: 0; overflow-y: auto; border-left: 1px solid var(--line); background: var(--panel); padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+h2 { margin: 0 0 8px; font-size: .7rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.stack { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.stack div { height: 100%; transition: width .3s ease; }
+.counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 10px; margin-top: 8px; font-size: .72rem; color: var(--muted); }
+.counts b { font-family: var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.counts i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+#trustChart { width: 100%; height: 150px; display: block; }
+.chartKey { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .7rem; color: var(--muted); margin-top: 6px; }
+.chartKey i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: 2px; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .72rem; font-variant-numeric: tabular-nums; }
+th { text-align: right; color: var(--muted); font-weight: 600; padding: 3px 4px; border-bottom: 1px solid var(--line); font-size: .66rem; text-transform: uppercase; letter-spacing: .04em; }
+td { text-align: right; padding: 4px; border-bottom: 1px solid var(--line); font-family: var(--f-mono); }
+th:first-child, td:first-child { text-align: left; font-family: var(--f-display); }
+.feed { display: flex; flex-direction: column; gap: 6px; font-size: .73rem; line-height: 1.35; }
+.feed .ev { padding: 6px 8px; border-radius: 6px; background: var(--floor); border: 1px solid var(--line); }
+.feed .ev.agent { border-color: color-mix(in srgb, var(--agent) 45%, var(--line)); }
+.feed .t { font-family: var(--f-mono); color: var(--steel); margin-right: 6px; }
+.feed .empty { color: var(--muted); }
+.note { font-size: .68rem; color: var(--muted); line-height: 1.4; margin: 6px 0 0; }
+footer { border-top: 1px solid var(--line); padding: 8px 16px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+button { font: inherit; font-size: .8rem; font-weight: 650; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover { border-color: var(--steel); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--steel); color: var(--floor); border-color: var(--steel); }
+.focus button { padding: 3px 9px; font-size: .74rem; }
+.speeds { display: flex; gap: 4px; }
+#scrub { flex: 1 1 280px; min-width: 0; accent-color: var(--steel); }
+@media (max-width: 820px) {
+  body { overflow: auto; }
+  .app { height: auto; min-height: 100%; }
+  .main { grid-template-columns: 1fr; }
+  .stage { height: 62vh; min-height: 340px; }
+  aside { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  header .clock { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .stack div { transition: none; } }
+</style>
+
+<div class="app">
+  <header>
+    <h1>Adaptive Trust-Based Intrusion Mitigation across SDN Networks</h1>
+    <span class="sub" id="sub"></span>
+    <span class="clock" id="clock">t = 0 s</span>
+  </header>
+  <div class="main">
+    <div class="stage" id="stage">
+      <div class="labels" id="labels"></div>
+      <div class="focus" id="focus" role="group" aria-label="Focus on a network"></div>
+      <div class="legend" id="legend"></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <aside>
+      <section>
+        <h2>Hosts by current action</h2>
+        <div class="stack" id="stack"></div>
+        <div class="counts" id="counts"></div>
+      </section>
+      <section>
+        <h2>Mean trust by host role</h2>
+        <canvas id="trustChart" aria-label="Mean trust over time for each host role"></canvas>
+        <div class="chartKey" id="chartKey"></div>
+      </section>
+      <section>
+        <h2>Honeypots (decoy servers)</h2>
+        <div class="tbl"><table id="honeyTable"></table></div>
+        <p class="note" id="honeyNote"></p>
+      </section>
+      <section>
+        <h2>Networks</h2>
+        <div class="tbl"><table id="netTable"></table></div>
+        <p class="note">Congestion is live; mitigation and service figures cover the full run.</p>
+      </section>
+      <section>
+        <h2>Controller decisions</h2>
+        <div class="feed" id="feed"><div class="empty">Rule changes appear here.</div></div>
+      </section>
+      <section id="attackSection" hidden>
+        <h2>Attacks by type</h2>
+        <div class="tbl"><table id="attackTable"></table></div>
+      </section>
+      <section>
+        <h2>Outcome over the full run</h2>
+        <div class="tbl"><table id="score"></table></div>
+        <p class="note" id="note"></p>
+      </section>
+    </aside>
+  </div>
+  <footer>
+    <button id="play" type="button">Pause</button>
+    <button id="restart" type="button">Restart</button>
+    <div class="speeds" role="group" aria-label="Playback speed">
+      <button type="button" data-speed="1" aria-pressed="true">1×</button>
+      <button type="button" data-speed="3" aria-pressed="false">3×</button>
+      <button type="button" data-speed="8" aria-pressed="false">8×</button>
+    </div>
+    <input type="range" id="scrub" min="0" max="120" step="1" value="0" aria-label="Simulation time">
+  </footer>
+</div>
+
+<script id="trace" type="application/json">__TRACE_JSON__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+  const T = JSON.parse(document.getElementById("trace").textContent);
+  const css = getComputedStyle(document.documentElement);
+  const tok = n => css.getPropertyValue(n).trim();
+  const ACTIONS = T.meta.actions;
+  const ACOL = [tok("--allow"), tok("--monitor"), tok("--ratelimit"), tok("--redirect"), tok("--block")];
+  const ALBL = ["Allow", "Monitor", "Rate limit", "Redirect", "Block"];
+  const ROLE_COL = { normal: tok("--allow"), bursty: tok("--ratelimit"), attacker: tok("--block"), compromised: tok("--redirect") };
+  const ROLE_LBL = { normal: "Normal", bursty: "Bursty", attacker: "Attacker", compromised: "Compromised" };
+  const kindLabel = i => { const k = T.meta.kinds[i]; return (T.meta.kind_labels || {})[k] || k.replaceAll("_", " "); };
+  const hosts = T.topology.hosts, H = hosts.length, F = T.frames, last = F.length - 1;
+  const NN = T.topology.n_networks;
+  const SW = Array.isArray(T.topology.switches_per_network) ? T.topology.switches_per_network : Array(NN).fill(T.topology.switches_per_network);
+  const HN = Array.from({ length: NN }, (_, n) => hosts.filter(h => h.network === n).length);
+  const totalSw = SW.reduce((a, b) => a + b, 0);
+  const netOfSw = SW.flatMap((c, n) => Array(c).fill(n));
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const maxUp = F.reduce((m, fr) => Math.max(m, ...fr.uplink_mbps), 1);
+  document.getElementById("sub").textContent =
+    `${NN} network${NN > 1 ? "s" : ""} · ${totalSw} access switches · ${H.toLocaleString()} hosts · ${T.summary.flows_total.toLocaleString()} flows scored`;
+  document.getElementById("scrub").max = last;
+  document.getElementById("legend").innerHTML = ALBL.map((l, i) => `<span><i style="background:${ACOL[i]}"></i>${l}</span>`).join("")
+    + `<span><i style="background:${tok("--idle")}"></i>Idle</span><span>Tower height = trust</span><span>Monitor = traffic passes, a mirrored copy goes to the analyser</span>`;
+
+  // ---------- Layout ----------
+  // each network sized by its own host and switch count
+  const hostRing = HN.map((h, n) => 1.6 + Math.sqrt(Math.ceil(h / SW[n])) * 0.55);
+  const swRing = SW.map((c, n) => Math.max(7, (c * (2 * hostRing[n] + 1.5)) / (2 * Math.PI)));
+  const clusterR = swRing.map((r, n) => r + hostRing[n] + 3);
+  const cols = Math.ceil(Math.sqrt(NN)), rows = Math.ceil(NN / cols);
+  const gap = Math.max(...clusterR) * 2 + 8;
+  const netCenter = n => new THREE.Vector3((n % cols - (cols - 1) / 2) * gap, 0, (Math.floor(n / cols) - (rows - 1) / 2) * gap);
+  const swPos = [], hostPos = new Array(H);
+  for (let n = 0; n < NN; n++) for (let j = 0; j < SW[n]; j++) {
+    const a = (j / SW[n]) * Math.PI * 2;
+    swPos.push(netCenter(n).add(new THREE.Vector3(Math.cos(a) * swRing[n], 0.8, Math.sin(a) * swRing[n])));
+  }
+  const swIndex = Object.fromEntries(T.topology.access_switches.map((s, g) => [s, g]));
+  const bySwitch = {};
+  hosts.forEach((h, i) => (bySwitch[h.switch] = bySwitch[h.switch] || []).push(i));
+  Object.entries(bySwitch).forEach(([sw, list]) => {
+    const g = swIndex[sw], c = swPos[g], n = netOfSw[g];
+    const out = c.clone().sub(netCenter(n)).setY(0).normalize();
+    list.forEach((hi, k) => {
+      // hosts on a fan facing outward from the spine, in rows
+      const perRow = Math.max(6, Math.ceil(Math.sqrt(list.length) * 1.6));
+      const row = Math.floor(k / perRow), col = k % perRow;
+      const spread = Math.PI * 0.9, ang = Math.atan2(out.z, out.x) + (col / Math.max(1, perRow - 1) - 0.5) * spread;
+      const r = 2.2 + row * 0.95;
+      hostPos[hi] = new THREE.Vector3(c.x + Math.cos(ang) * r, 0, c.z + Math.sin(ang) * r);
+    });
+  });
+
+  // ---------- Scene ----------
+  const stage = document.getElementById("stage");
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(new THREE.Color(tok("--floor")));
+  stage.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(tok("--floor"), 80, 260);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.48;
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x0b1220, 0.8));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.65); sun.position.set(20, 40, 25); scene.add(sun);
+  const span = Math.max(cols, rows) * gap;
+  const grid = new THREE.GridHelper(span + 40, Math.round((span + 40) / 4), new THREE.Color(tok("--line")), new THREE.Color(tok("--line")));
+  grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+  const C = c => new THREE.Color(c);
+  const mat = (c, x = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(c), roughness: 0.55, metalness: 0.15 }, x));
+
+  const ctrlMeshes = [], spineMeshes = [], svcPos = [], honeyMeshes = [], honeyRings = [];
+  for (let n = 0; n < NN; n++) {
+    const c = netCenter(n);
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.9, 2.2), mat("#2a3c5e")); spine.position.copy(c).setY(1.2); scene.add(spine); spineMeshes.push(spine);
+    const ctrl = new THREE.Mesh(new THREE.OctahedronGeometry(1.4), mat(tok("--steel"), { emissive: C(tok("--steel")), emissiveIntensity: 0.25, flatShading: true }));
+    ctrl.position.copy(c).setY(10); scene.add(ctrl); ctrlMeshes.push(ctrl);
+    const cl = new THREE.Line(new THREE.BufferGeometry().setFromPoints([ctrl.position, spine.position]),
+      new THREE.LineDashedMaterial({ color: C(tok("--steel")), dashSize: 0.4, gapSize: 0.3, transparent: true, opacity: 0.5 }));
+    cl.computeLineDistances(); scene.add(cl);
+    // service leaf (server + honeypot) just behind the spine
+    const sv = c.clone().add(new THREE.Vector3(0, 0, -3.8)); svcPos.push(sv);
+    const srv = new THREE.Mesh(new THREE.BoxGeometry(1.3, 3.2, 1.3), mat("#3a5a8c")); srv.position.copy(sv).add(new THREE.Vector3(-1, 1.6, 0)); scene.add(srv);
+    const hp = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.8, 1.1), mat("#5a3f80", { emissive: C("#000000") })); hp.position.copy(sv).add(new THREE.Vector3(1.2, 0.9, 0)); scene.add(hp);
+    const hr = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.2, 40), new THREE.MeshBasicMaterial({ color: C(tok("--idle")), side: THREE.DoubleSide, transparent: true, opacity: 0.4 }));
+    hr.rotation.x = -Math.PI / 2; hr.position.copy(sv).add(new THREE.Vector3(1.2, 0.03, 0)); scene.add(hr);
+    honeyMeshes.push(hp); honeyRings.push(hr);
+  }
+  // access switches + uplinks
+  const swGeo = new THREE.BoxGeometry(2.2, 0.55, 1.3);
+  const swMeshes = swPos.map(p => { const m = new THREE.Mesh(swGeo, mat("#22324f", { emissive: C("#000000") })); m.position.copy(p); scene.add(m); return m; });
+  const uplinks = swPos.map((p, g) => {
+    const s = spineMeshes[netOfSw[g]].position;
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(p, s), 1, 0.09, 6, false),
+      new THREE.MeshBasicMaterial({ color: C(tok("--line")) }));
+    scene.add(tube); return tube;
+  });
+  // host -> switch links (one geometry, per-vertex colour)
+  const segPos = new Float32Array(H * 6), segCol = new Float32Array(H * 6);
+  hosts.forEach((h, i) => {
+    const a = hostPos[i], b = swPos[swIndex[h.switch]];
+    segPos.set([a.x, 0.35, a.z, b.x, b.y, b.z], i * 6);
+  });
+  const segGeo = new THREE.BufferGeometry();
+  segGeo.setAttribute("position", new THREE.BufferAttribute(segPos, 3));
+  segGeo.setAttribute("color", new THREE.BufferAttribute(segCol, 3));
+  scene.add(new THREE.LineSegments(segGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55 })));
+
+  // hosts: instanced towers, colour = action, height = trust
+  const hostGeo = new THREE.BoxGeometry(0.62, 1, 0.62); hostGeo.translate(0, 0.5, 0);
+  const hostMesh = new THREE.InstancedMesh(hostGeo, new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0.1 }), H);
+  hostMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(hostMesh);
+  // role markers on the floor (thin squares), so attackers stay identifiable once idle
+  const roleGeo = new THREE.PlaneGeometry(0.95, 0.95); roleGeo.rotateX(-Math.PI / 2);
+  const roleMesh = new THREE.InstancedMesh(roleGeo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55 }), H);
+  const dummy = new THREE.Object3D(), col = new THREE.Color();
+  hosts.forEach((h, i) => {
+    dummy.position.copy(hostPos[i]).setY(0.02); dummy.scale.set(1, 1, 1); dummy.updateMatrix();
+    roleMesh.setMatrixAt(i, dummy.matrix); roleMesh.setColorAt(i, col.set(ROLE_COL[h.role]));
+  });
+  scene.add(roleMesh);
+
+  // ---------- Labels ----------
+  const labelsEl = document.getElementById("labels");
+  const labels = [];
+  const mkLabel = (pos, title, sub) => {
+    const el = document.createElement("div"); el.className = "lbl";
+    el.innerHTML = `<b>${title}</b>${sub ? `<span>${sub}</span>` : ""}`; labelsEl.appendChild(el);
+    labels.push({ el, pos });
+  };
+  for (let n = 0; n < NN; n++) {
+    mkLabel(ctrlMeshes[n].position.clone().add(new THREE.Vector3(0, 2.2, 0)), NN > 1 ? `Network N${n + 1}` : "Ryu controller", `${HN[n]} hosts · ${SW[n]} switches`);
+  }
+  const honeyLabels = [];
+  for (let n = 0; n < NN; n++) {
+    mkLabel(svcPos[n].clone().add(new THREE.Vector3(1.2, 2.3, 0)), "", "");
+    const l = labels[labels.length - 1]; l.el.style.display = "none"; l.hidden = true; honeyLabels.push(l);
+  }
+  function placeLabels(w, h) {
+    labels.forEach(l => {
+      const v = l.pos.clone().project(camera);
+      l.el.style.display = v.z < 1 && !l.hidden ? "" : "none";
+      l.el.style.left = ((v.x + 1) / 2 * w) + "px"; l.el.style.top = ((1 - v.y) / 2 * h) + "px";
+    });
+  }
+
+  // ---------- Packets (pooled instanced spheres) ----------
+  const MAXP = 1600;
+  const pMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 8, 8), new THREE.MeshBasicMaterial(), MAXP);
+  pMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(pMesh);
+  const pool = []; for (let i = 0; i < MAXP; i++) pool.push({ alive: false });
+  const hide = new THREE.Matrix4().makeScale(0, 0, 0);
+  for (let i = 0; i < MAXP; i++) pMesh.setMatrixAt(i, hide);
+  function spawn(hi, action, mirror) {
+    const slot = pool.findIndex(p => !p.alive); if (slot < 0) return;
+    const h = hosts[hi], g = swIndex[h.switch], n = h.network;
+    const a = hostPos[hi].clone().setY(0.4), sw = swPos[g], sp = spineMeshes[n].position, sv = svcPos[n];
+    let pts;
+    if (mirror) pts = [sw, sp, ctrlMeshes[n].position];              // Monitor: mirrored copy to the controller's analyser
+    else if (action === 4) pts = [a, sw];
+    else if (action === 3) pts = [a, sw, sp, sv.clone().add(new THREE.Vector3(1.2, 1, 0))];
+    else pts = [a, sw, sp, sv.clone().add(new THREE.Vector3(-1, 1.5, 0))];
+    const lens = []; let tot = 0;
+    for (let k = 1; k < pts.length; k++) { const d = pts[k].distanceTo(pts[k - 1]); lens.push(d); tot += d; }
+    Object.assign(pool[slot], { alive: true, pts, lens, tot, s: 0, speed: action === 2 ? 7 : 13, action, burst: 0 });
+    pMesh.setColorAt(slot, col.set(ACOL[action]));
+  }
+  const tmpV = new THREE.Vector3();
+  function stepPackets(dt) {
+    for (let i = 0; i < MAXP; i++) {
+      const p = pool[i]; if (!p.alive) continue;
+      if (p.burst > 0) {
+        p.burst -= dt;
+        dummy.position.copy(p.pts[p.pts.length - 1]); dummy.scale.setScalar(1 + (0.3 - p.burst) * 7); dummy.updateMatrix();
+        pMesh.setMatrixAt(i, dummy.matrix);
+        if (p.burst <= 0) { p.alive = false; pMesh.setMatrixAt(i, hide); }
+        continue;
+      }
+      p.s += p.speed * dt;
+      if (p.s >= p.tot) {
+        if (p.action === 4) { p.burst = 0.3; continue; }
+        p.alive = false; pMesh.setMatrixAt(i, hide); continue;
+      }
+      let s = p.s, k = 0; while (s > p.lens[k]) { s -= p.lens[k]; k++; }
+      tmpV.lerpVectors(p.pts[k], p.pts[k + 1], s / p.lens[k]);
+      dummy.position.copy(tmpV); dummy.scale.setScalar(1); dummy.updateMatrix(); pMesh.setMatrixAt(i, dummy.matrix);
+    }
+    pMesh.instanceMatrix.needsUpdate = true;
+    if (pMesh.instanceColor) pMesh.instanceColor.needsUpdate = true;
+  }
+  function clearPackets() { pool.forEach((p, i) => { p.alive = false; pMesh.setMatrixAt(i, hide); }); pMesh.instanceMatrix.needsUpdate = true; }
+
+  // ---------- Panels ----------
+  const roles = Object.keys(ROLE_LBL).filter(r => hosts.some(h => h.role === r));
+  const roleIdx = Object.fromEntries(roles.map(r => [r, hosts.map((h, i) => h.role === r ? i : -1).filter(i => i >= 0)]));
+  const trustSeries = roles.map(r => F.map(f => roleIdx[r].reduce((s, i) => s + f.trust[i], 0) / roleIdx[r].length));
+  document.getElementById("chartKey").innerHTML = roles.map(r =>
+    `<span><i style="background:${ROLE_COL[r]}"></i>${ROLE_LBL[r]} (${roleIdx[r].length})</span>`).join("");
+  const chart = document.getElementById("trustChart");
+  function drawChart(upto) {
+    const dpr = Math.min(devicePixelRatio, 2), w = chart.clientWidth, h = chart.clientHeight;
+    chart.width = w * dpr; chart.height = h * dpr;
+    const g = chart.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const L = 30, R = 6, Tp = 6, B = 18, x = i => L + (i / last) * (w - L - R), y = v => Tp + (1 - v) * (h - Tp - B);
+    g.font = `10px ${tok("--f-mono")}`; g.fillStyle = tok("--muted"); g.strokeStyle = tok("--line"); g.lineWidth = 1;
+    [0, 0.5, 1].forEach(v => { g.beginPath(); g.moveTo(L, y(v)); g.lineTo(w - R, y(v)); g.stroke(); g.fillText(v.toFixed(1), 4, y(v) + 3); });
+    g.fillText("0 s", L, h - 4); const endLbl = `${F[last].t} s`; g.fillText(endLbl, w - R - g.measureText(endLbl).width, h - 4);
+    trustSeries.forEach((ser, k) => {
+      g.strokeStyle = ROLE_COL[roles[k]]; g.lineWidth = 2; g.beginPath();
+      for (let i = 0; i <= upto; i++) i ? g.lineTo(x(i), y(ser[i])) : g.moveTo(x(i), y(ser[i]));
+      g.stroke();
+      g.fillStyle = ROLE_COL[roles[k]]; g.beginPath(); g.arc(x(upto), y(ser[upto]), 3, 0, Math.PI * 2); g.fill();
+    });
+    g.strokeStyle = tok("--steel"); g.setLineDash([3, 3]); g.beginPath();
+    const it = F.findIndex(f => f.t === T.meta.intel_tick); if (it >= 0) { g.moveTo(x(it), Tp); g.lineTo(x(it), h - B); g.stroke(); }
+    g.setLineDash([]);
+  }
+  const S0 = T.summary;
+  const pct = v => v == null ? "–" : v.toFixed(1) + "%";
+  document.getElementById("score").innerHTML = `<tr><th>Strategy</th><th>Attacks stopped</th><th>Benign served</th></tr>
+    <tr><td>Proposed framework</td><td>${pct(S0.proposed.attack_mitigation_pct)}</td><td>${pct(S0.proposed.benign_served_pct)}</td></tr>
+    <tr><td>Static block at P ≥ 0.5</td><td>${pct(S0.static_threshold_0_5.attack_mitigation_pct)}</td><td>${pct(S0.static_threshold_0_5.benign_served_pct)}</td></tr>`;
+  const tt = S0.time_to_mitigate_s;
+  document.getElementById("note").textContent =
+    `${S0.flows_total.toLocaleString()} flows (${S0.flows_attack.toLocaleString()} attack). ${tt.malicious_hosts} malicious hosts, ` +
+    `${tt.never_mitigated} never contained, mean time to first mitigation ${tt.mean ?? "–"} s. ` +
+    `Decisions: ${S0.ppo_model ? "trained PPO" : "rule-based policy"} + AHP-TOPSIS (CR ${S0.ahp_consistency_ratio}).` +
+    (T.agent ? ` AI agent (${T.agent.backend}): ${T.agent.reviews} reviews, ${T.agent.overrides} overrides, ${T.agent.incidents.length} incidents, ${T.agent.pending_approvals.length} awaiting human approval.` : "");
+
+  if (S0.by_attack && S0.by_attack.length) {
+    document.getElementById("attackSection").hidden = false;
+    document.getElementById("attackTable").innerHTML = `<tr><th>Attack</th><th>Hosts</th><th>Flows</th><th>Stopped</th><th>IDS score</th></tr>` +
+      S0.by_attack.map(r => `<tr><td>${r.label}${r.unseen_by_ids ? " *" : ""}</td><td>${(r.attacker_hosts || 0) + (r.compromised_hosts || 0)}</td><td>${r.flows.toLocaleString()}</td><td>${pct(r.mitigated_pct)}</td><td>${r.mean_p_attack.toFixed(2)}</td></tr>`).join("") +
+      (S0.by_attack.some(r => r.unseen_by_ids) ? `<tr><td colspan="5" style="font-family:var(--f-display);color:var(--muted)">* never seen by the IDS during training</td></tr>` : "");
+  }
+  const focusEl = document.getElementById("focus");
+  focusEl.innerHTML = `<button type="button" data-net="-1" aria-pressed="true">All</button>` +
+    (NN > 1 ? Array.from({ length: NN }, (_, n) => `<button type="button" data-net="${n}" aria-pressed="false">N${n + 1}</button>`).join("") : "");
+  let camGoal = null;
+  focusEl.onclick = e => {
+    const b = e.target.closest("button"); if (!b) return;
+    focusEl.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    const n = +b.dataset.net;
+    camGoal = n < 0 ? overview() : { target: netCenter(n).setY(1), dist: clusterR[n] * 2.6 };
+  };
+  function overview() { return { target: new THREE.Vector3(0, 1, 0), dist: Math.max(40, span * 1.25 / Math.max(0.55, Math.min(1.3, camera.aspect))) }; }
+
+  // Honeypot activity per network: hosts redirected now, running total of redirected host-seconds
+  const honeyNow = [], honeyCum = [], redirIdx = []; let firstHoney = null, redirAcc = 0;
+  { const cum = new Array(NN).fill(0);
+    F.forEach(f => {
+      const now = Array.from({ length: NN }, () => ({ n: 0, kinds: new Set() }));
+      const ids = [];
+      for (let k = 0; k < H; k++) if (f.active[k] && f.action[k] === 3) { ids.push(k); const nn = hosts[k].network; now[nn].n++; now[nn].kinds.add(kindLabel(f.kind[k])); cum[nn]++; }
+      if (firstHoney === null && now.some(x => x.n)) firstHoney = f.t;
+      honeyNow.push(now); honeyCum.push(cum.slice()); redirIdx.push(ids);
+    }); }
+  let honeyActive = new Array(NN).fill(false);
+  function updateHoney(i, t) {
+    const now = honeyNow[i], cum = honeyCum[i];
+    honeyActive = now.map(x => x.n > 0);
+    for (let n = 0; n < NN; n++) {
+      const on = honeyActive[n];
+      honeyMeshes[n].material.emissive.set(on ? tok("--redirect") : "#000000");
+      honeyMeshes[n].material.emissiveIntensity = on ? 0.5 : 0;
+      honeyRings[n].material.color.set(on ? tok("--redirect") : tok("--idle"));
+      honeyRings[n].material.opacity = on ? 0.95 : 0.4;
+      const l = honeyLabels[n]; l.hidden = !on;
+      if (on) l.el.innerHTML = `<b style="color:var(--redirect)">Honeypot${NN > 1 ? ` N${n + 1}` : ""}</b><span>capturing ${now[n].n} host${now[n].n > 1 ? "s" : ""}</span>`;
+    }
+    document.getElementById("honeyTable").innerHTML = `<tr><th>Net</th><th>Status</th><th>Hosts now</th><th>Traffic</th><th>Captured (host·s)</th></tr>` +
+      now.map((x, n) => `<tr><td>N${n + 1}</td><td>${x.n ? `<b style="color:var(--redirect)">Capturing</b>` : cum[n] ? "Idle (saved)" : "Idle"}</td><td>${x.n}</td><td>${x.n ? [...x.kinds].join(", ") : "–"}</td><td>${cum[n]}</td></tr>`).join("");
+    document.getElementById("honeyNote").textContent = firstHoney === null
+      ? "Nothing was redirected in this run."
+      : t < firstHoney
+      ? `Each network has a decoy server next to its real server. Traffic is sent there mainly when a host matches a known exploit (CVE); in this run the first redirect is at t = ${firstHoney} s.`
+      : "Redirected hosts think they reach the server; the switch rewrites the destination to the honeypot, which records the exploit for forensics.";
+  }
+  function applyFrame(i) {
+    const f = F[i];
+    updateHoney(i, f.t);
+    document.getElementById("clock").textContent = `t = ${f.t} s / ${F[last].t} s`;
+    document.getElementById("scrub").value = i;
+    const counts = [0, 0, 0, 0, 0]; let idle = 0;
+    for (let k = 0; k < H; k++) {
+      const act = f.active[k], a = f.action[k], tr = f.trust[k];
+      dummy.position.copy(hostPos[k]); dummy.scale.set(1, 0.25 + tr * 2.6, 1); dummy.updateMatrix();
+      hostMesh.setMatrixAt(k, dummy.matrix);
+      hostMesh.setColorAt(k, col.set(act ? ACOL[a] : tok("--idle")));
+      col.toArray(segCol, k * 6); col.toArray(segCol, k * 6 + 3);
+      if (act) counts[a]++; else idle++;
+    }
+    hostMesh.instanceMatrix.needsUpdate = true; hostMesh.instanceColor.needsUpdate = true;
+    segGeo.attributes.color.needsUpdate = true;
+    f.uplink_mbps.forEach((m, g) => {
+      const u = m / maxUp;
+      uplinks[g].material.color.copy(C(tok("--line")).lerp(C(u > 0.66 ? tok("--block") : u > 0.33 ? tok("--ratelimit") : tok("--steel")), m > 0.01 ? Math.min(1, 0.3 + u) : 0));
+    });
+    const tot = H;
+    document.getElementById("stack").innerHTML = counts.map((c, k) => `<div style="width:${c / tot * 100}%;background:${ACOL[k]}" title="${ALBL[k]}: ${c}"></div>`).join("")
+      + `<div style="width:${idle / tot * 100}%;background:${tok("--idle")}" title="Idle: ${idle}"></div>`;
+    document.getElementById("counts").innerHTML = counts.map((c, k) => `<span><i style="background:${ACOL[k]}"></i>${ALBL[k]}<b>${c}</b></span>`).join("")
+      + `<span><i style="background:${tok("--idle")}"></i>Idle<b>${idle}</b></span>`;
+    document.getElementById("netTable").innerHTML = `<tr><th>Net</th><th>Malicious hosts</th><th>Congestion</th><th>Attacks stopped</th><th>Benign served</th></tr>` +
+      S0.by_network.map((r, n) => `<tr><td>${r.network}</td><td>${r.malicious_hosts} / ${r.hosts}</td><td>${f.context[n].congestion.toFixed(2)}</td><td>${pct(r.attack_mitigation_pct)}</td><td>${pct(r.benign_served_pct)}</td></tr>`).join("");
+    drawChart(i);
+    const past = T.events.filter(e => e.t <= f.t);
+    const agentEvs = past.filter(e => e.type === "agent").slice(-3);
+    const evs = [...past.filter(e => e.type !== "agent").slice(-(6 - agentEvs.length)), ...agentEvs].sort((a, b) => a.t - b.t).reverse();
+    document.getElementById("feed").innerHTML = evs.length ? evs.map(e => e.type === "intel"
+      ? `<div class="ev"><span class="t">${e.t}s</span><b style="color:var(--steel)">Threat intel</b> · ${e.text.replace("Threat intel: ", "")}</div>`
+      : e.type === "agent"
+      ? `<div class="ev agent"><span class="t">${e.t}s</span><b style="color:var(--agent)">AI agent</b> · ${e.text}</div>`
+      : `<div class="ev"><span class="t">${e.t}s</span><b style="color:${ACOL[ACTIONS.indexOf(e.action)]}">${ALBL[ACTIONS.indexOf(e.action)]}</b> · ${e.host} (${ROLE_LBL[e.role]}) P=${e.p.toFixed(2)}, trust ${e.trust.toFixed(2)}${e.guardrail ? ` · ${e.guardrail}` : ""}${e.emerging ? ` · matches ${e.emerging}` : ""}</div>`).join("")
+      : `<div class="empty">Rule changes appear here.</div>`;
+  }
+
+  // ---------- Hover tooltip ----------
+  const tip = document.getElementById("tip"), ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+  renderer.domElement.addEventListener("pointermove", e => {
+    const r = renderer.domElement.getBoundingClientRect();
+    mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(mouse, camera);
+    const hit = ray.intersectObject(hostMesh)[0];
+    if (!hit) { tip.hidden = true; return; }
+    const k = hit.instanceId, h = hosts[k], f = F[idx];
+    tip.innerHTML = `<b>${h.name}</b> <span class="m">${h.ip}</span><br>${ROLE_LBL[h.role]} · ${NN > 1 ? `N${h.network + 1} · ` : ""}${h.switch}<br>` +
+      `Trust <b>${f.trust[k].toFixed(2)}</b> · P(attack) <b>${f.p[k] >= 0 ? f.p[k].toFixed(2) : "–"}</b><br>` +
+      `Action <b style="color:${f.active[k] ? ACOL[f.action[k]] : "inherit"}">${f.active[k] ? ALBL[f.action[k]] : "Idle"}</b> <span class="m">${kindLabel(f.kind[k])}</span>${h.attack ? `<br><span class="m">attack type: ${(T.meta.kind_labels || {})[h.attack] || h.attack}</span>` : ""}`;
+    tip.hidden = false;
+    const x = e.clientX - r.left + 14, y = e.clientY - r.top + 14;
+    tip.style.left = Math.min(x, r.width - tip.offsetWidth - 8) + "px"; tip.style.top = Math.min(y, r.height - tip.offsetHeight - 8) + "px";
+  });
+  renderer.domElement.addEventListener("pointerleave", () => (tip.hidden = true));
+
+  // ---------- Playback ----------
+  let idx = 0, playing = !reduce, speed = 1, acc = 0, spawnAcc = 0;
+  const playBtn = document.getElementById("play");
+  const setPlaying = v => { playing = v; playBtn.textContent = v ? "Pause" : "Play"; };
+  setPlaying(playing);
+  playBtn.onclick = () => { if (idx >= last) { idx = 0; clearPackets(); applyFrame(0); } setPlaying(!playing); };
+  document.getElementById("restart").onclick = () => { idx = 0; acc = 0; clearPackets(); applyFrame(0); setPlaying(true); };
+  document.querySelectorAll("[data-speed]").forEach(b => b.onclick = () => {
+    speed = +b.dataset.speed;
+    document.querySelectorAll("[data-speed]").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+  });
+  document.getElementById("scrub").oninput = e => { idx = +e.target.value; acc = 0; clearPackets(); applyFrame(idx); };
+
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+    const o = overview(); controls.target.copy(o.target);
+    camera.position.copy(o.target).add(new THREE.Vector3(0, 0.75, 1).normalize().multiplyScalar(o.dist));
+    scene.fog.near = o.dist * 0.9; scene.fog.far = o.dist * 2.8; controls.maxDistance = o.dist * 2;
+    drawChart(idx);
+  }
+  new ResizeObserver(resize).observe(stage);
+
+  let prev = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+    if (playing) {
+      acc += dt * speed;
+      if (acc >= 1) { acc -= 1; if (idx < last) applyFrame(++idx); else setPlaying(false); }
+      // spawn packets from a random sample of active hosts, budgeted to keep the frame light
+      const f = F[idx];
+      spawnAcc += dt * Math.min(220, 40 + H * 0.25) * Math.min(speed, 3);
+      while (spawnAcc >= 1) {
+        spawnAcc -= 1;
+        const k = (Math.random() * H) | 0;
+        if (f.active[k]) {
+          spawn(k, f.action[k]);
+          if (f.action[k] === 1 && Math.random() < 0.5) spawn(k, 1, true);
+        }
+      }
+      // redirected hosts are few: give them their own packet budget so the path to the honeypot is visible
+      const rs = redirIdx[idx];
+      if (rs.length) {
+        redirAcc += dt * Math.min(40, 4 * rs.length) * Math.min(speed, 3);
+        while (redirAcc >= 1) { redirAcc -= 1; spawn(rs[(Math.random() * rs.length) | 0], 3); }
+      }
+    }
+    stepPackets(dt * (playing ? Math.min(speed, 3) : 0));
+    if (camGoal) {
+      controls.target.lerp(camGoal.target, 0.08);
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      const want = controls.target.clone().add(dir.multiplyScalar(camGoal.dist));
+      camera.position.lerp(want, 0.08);
+      if (camera.position.distanceTo(want) < 0.2) camGoal = null;
+    }
+    ctrlMeshes.forEach(c => (c.rotation.y += dt * 0.5));
+    honeyRings.forEach((r, n) => r.scale.setScalar(honeyActive[n] ? 1 + 0.15 * Math.sin(now / 160) : 1));
+    controls.update(); renderer.render(scene, camera);
+    const r = stage.getBoundingClientRect(); placeLabels(r.width, r.height);
+    requestAnimationFrame(loop);
+  }
+  resize(); applyFrame(0); requestAnimationFrame(loop);
+})();
+</script>

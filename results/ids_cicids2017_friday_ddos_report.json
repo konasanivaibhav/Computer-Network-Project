@@ -1,0 +1,110 @@
+{
+  "dataset": "cicids2017_friday_ddos",
+  "train_source": "/tmp/claude-0/-home-claude/a4ec599d-cf5f-5093-9045-063014ed170a/scratchpad/realdata/Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+  "test_source": "25% stratified split",
+  "train_rows": 169308,
+  "test_rows": 56437,
+  "features_not_measured": [
+    "sttl",
+    "dttl",
+    "sloss",
+    "dloss",
+    "trans_depth",
+    "res_bdy_len",
+    "synack",
+    "ackdat",
+    "stcpb",
+    "dtcpb",
+    "tcprtt"
+  ],
+  "settings": {
+    "n_estimators": 100,
+    "cv_folds": 3,
+    "smote": false,
+    "threshold": 0.5,
+    "seed": 42
+  },
+  "metrics": {
+    "tpr": 0.999938,
+    "fpr": 0.000123,
+    "specificity": 0.999877,
+    "precision": 0.999906,
+    "accuracy": 0.999911,
+    "f1_score": 0.999922,
+    "roc_auc": 0.999995,
+    "pr_auc": 0.999997,
+    "brier_score": 7.8e-05,
+    "ece": 6.1e-05,
+    "confusion_matrix": {
+      "tp": 32005,
+      "fp": 3,
+      "tn": 24427,
+      "fn": 2
+    },
+    "sla_compliance": {
+      "meets_tpr_target": true,
+      "meets_fpr_target": true,
+      "overall_sla_pass": true,
+      "target_tpr": 0.95,
+      "target_fpr": 0.05
+    }
+  },
+  "per_category": [
+    {
+      "category": "DDoS",
+      "type": "attack",
+      "flows": 32007,
+      "correct_pct": 99.99
+    },
+    {
+      "category": "Normal",
+      "type": "benign",
+      "flows": 24430,
+      "correct_pct": 99.99
+    }
+  ],
+  "top_features": [
+    {
+      "feature": "swin",
+      "importance": 0.17605
+    },
+    {
+      "feature": "smeansz",
+      "importance": 0.16703
+    },
+    {
+      "feature": "spkts",
+      "importance": 0.10918
+    },
+    {
+      "feature": "sbytes",
+      "importance": 0.09583
+    },
+    {
+      "feature": "dmeansz",
+      "importance": 0.09401
+    },
+    {
+      "feature": "service",
+      "importance": 0.07554
+    },
+    {
+      "feature": "sjit",
+      "importance": 0.0642
+    },
+    {
+      "feature": "dbytes",
+      "importance": 0.04426
+    },
+    {
+      "feature": "dwin",
+      "importance": 0.03689
+    },
+    {
+      "feature": "sload",
+      "importance": 0.03069
+    }
+  ],
+  "training_seconds": 19.9,
+  "inference_ms_per_flow": 0.00689
+}
